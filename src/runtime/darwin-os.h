@@ -36,6 +36,7 @@ typedef ucontext_t os_context_t;
 
 #ifdef LISP_FEATURE_MACH_EXCEPTION_HANDLER
 extern mach_port_t current_mach_task;
+extern kern_return_t mach_thread_init(mach_port_t thread_exception_port);
 #endif
 
 void darwin_init(void);

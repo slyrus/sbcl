@@ -44,10 +44,6 @@ void set_data_desc_addr(data_desc_t* desc, void* addr)
 
 #endif
 
-#ifdef LISP_FEATURE_MACH_EXCEPTION_HANDLER
-kern_return_t mach_thread_init(mach_port_t thread_exception_port);
-#endif
-
 int arch_os_thread_init(struct thread *thread) {
 #ifdef LISP_FEATURE_SB_THREAD
     int n;

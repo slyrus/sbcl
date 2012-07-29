@@ -12,12 +12,6 @@
 #include <machine/fpu.h>
 #endif
 
-#ifdef LISP_FEATURE_MACH_EXCEPTION_HANDLER
-#include <mach/mach.h>
-
-kern_return_t mach_thread_init(mach_port_t thread_exception_port);
-#endif
-
 /* KLUDGE: There is strong family resemblance in the signal context
  * stuff in FreeBSD and OpenBSD, but in detail they're different in
  * almost every line of code. It would be nice to find some way to

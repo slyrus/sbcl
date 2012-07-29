@@ -590,12 +590,6 @@ create_thread_struct(lispobj initial_function) {
     return th;
 }
 
-#ifdef LISP_FEATURE_MACH_EXCEPTION_HANDLER
-mach_port_t setup_mach_exception_handling_thread();
-kern_return_t mach_thread_init(mach_port_t thread_exception_port);
-
-#endif
-
 void create_initial_thread(lispobj initial_function) {
     struct thread *th=create_thread_struct(initial_function);
 #ifdef LISP_FEATURE_SB_THREAD
