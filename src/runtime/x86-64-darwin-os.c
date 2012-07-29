@@ -325,9 +325,20 @@ catch_exception_raise(mach_port_t exception_port,
 
     os_vm_address_t addr;
 
-    struct thread *th = (struct thread*) exception_port;
+    struct thread *p, *th = NULL;
 
     FSHOW((stderr,"/entering catch_exception_raise with exception: %d\n", exception));
+
+    for(p=all_threads; p; p=p->next) {
+      if (exception_port == p->mach_port_name) {
+        th = p;
+        break;
+      }
+    }
+
+    if (!th)
+      lose("catch_exception_raise failed to find lisp thread for excecption_port",
+           exception_port);
 
     switch (exception) {
 

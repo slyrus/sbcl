@@ -75,7 +75,7 @@ int arch_os_thread_init(struct thread *thread) {
     pthread_setspecific(specials,thread);
 #endif
 #ifdef LISP_FEATURE_MACH_EXCEPTION_HANDLER
-    mach_thread_init(THREAD_STRUCT_TO_EXCEPTION_PORT(thread));
+    mach_lisp_thread_init(thread);
 #endif
 
 #ifdef LISP_FEATURE_C_STACK_IS_CONTROL_STACK
