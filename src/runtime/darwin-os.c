@@ -100,24 +100,24 @@ setup_mach_exception_handling_thread()
    exception port (which is being listened to do by the mach
    exception handling thread). */
 kern_return_t
-mach_thread_init(mach_port_t thread_exception_port)
+mach_thread_init(mach_port_t *thread_exception_port)
 {
     kern_return_t ret;
     mach_port_t current_mach_thread;
 
     /* allocate a named port for the thread */
     FSHOW((stderr, "Allocating mach port %x\n", thread_exception_port));
-    ret = mach_port_allocate_name(current_mach_task,
-                                  MACH_PORT_RIGHT_RECEIVE,
-                                  thread_exception_port);
+    ret = mach_port_allocate(current_mach_task,
+                             MACH_PORT_RIGHT_RECEIVE,
+                             thread_exception_port);
     if (ret) {
         lose("mach_port_allocate_name failed with return_code %d\n", ret);
     }
 
     /* establish the right for the thread_exception_port to send messages */
     ret = mach_port_insert_right(current_mach_task,
-                                 thread_exception_port,
-                                 thread_exception_port,
+                                 *thread_exception_port,
+                                 *thread_exception_port,
                                  MACH_MSG_TYPE_MAKE_SEND);
     if (ret) {
         lose("mach_port_insert_right failed with return_code %d\n", ret);
@@ -126,7 +126,7 @@ mach_thread_init(mach_port_t thread_exception_port)
     current_mach_thread = mach_thread_self();
     ret = thread_set_exception_ports(current_mach_thread,
                                      EXC_MASK_BAD_ACCESS | EXC_MASK_BAD_INSTRUCTION,
-                                     thread_exception_port,
+                                     *thread_exception_port,
                                      EXCEPTION_DEFAULT,
                                      THREAD_STATE_NONE);
     if (ret) {
@@ -139,7 +139,7 @@ mach_thread_init(mach_port_t thread_exception_port)
     }
 
     ret = mach_port_move_member(current_mach_task,
-                                thread_exception_port,
+                                *thread_exception_port,
                                 mach_exception_handler_port_set);
     if (ret) {
         lose("mach_port_move_member failed with return_code %d\n", ret);
@@ -151,9 +151,9 @@ mach_thread_init(mach_port_t thread_exception_port)
 kern_return_t
 mach_lisp_thread_init(struct thread *thread) {
     /* FIXME! */
-    mach_port_t port = (mach_port_t) thread;
+    mach_port_t port;
     kern_return_t ret;
-    ret = mach_thread_init(port);
+    ret = mach_thread_init(&port);
 
     thread->mach_port_name = port;
 
@@ -162,7 +162,7 @@ mach_lisp_thread_init(struct thread *thread) {
 
 kern_return_t
 mach_lisp_thread_destroy(struct thread *thread) {
-    mach_port_t port = (mach_port_t) thread;
+    mach_port_t port = thread->mach_port_name;
 
     FSHOW((stderr, "Deallocating mach port %x\n", port));
     mach_port_move_member(current_mach_task, port, MACH_PORT_NULL);
@@ -174,10 +174,12 @@ mach_lisp_thread_destroy(struct thread *thread) {
 void
 setup_mach_exceptions() {
     /* FIXME! */
-    mach_port_t port = (mach_port_t) all_threads;
+    mach_port_t port;
 
     setup_mach_exception_handling_thread();
-    mach_thread_init(port);
+    mach_thread_init(&port);
+
+    all_threads->mach_port_name = port;
 }
 
 pid_t
