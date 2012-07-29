@@ -382,7 +382,6 @@ catch_exception_raise(mach_port_t exception_port,
                       exception_data_t code_vector,
                       mach_msg_type_number_t code_count)
 {
-    struct thread *th = (struct thread*) exception_port;
     x86_thread_state32_t thread_state;
     mach_msg_type_number_t state_count;
     vm_address_t region_addr;
@@ -395,6 +394,21 @@ catch_exception_raise(mach_port_t exception_port,
     void (*handler)(int, siginfo_t *, void *) = NULL;
     siginfo_t siginfo;
     kern_return_t ret, dealloc_ret;
+
+    struct thread *p, *th = NULL;
+
+    FSHOW((stderr,"/entering catch_exception_raise with exception: %d\n", exception));
+
+    for(p=all_threads; p; p=p->next) {
+      if (exception_port == p->mach_port_name) {
+        th = p;
+        break;
+      }
+    }
+
+    if (!th)
+      lose("catch_exception_raise failed to find lisp thread for excecption_port",
+           exception_port);
 
     /* Get state and info */
     state_count = x86_THREAD_STATE32_COUNT;
