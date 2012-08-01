@@ -96,23 +96,62 @@ setup_mach_exception_handling_thread()
     return mach_exception_handling_thread;
 }
 
+struct exception_port_record
+{
+        struct thread * thread;
+        struct exception_port_record * next;
+};
+
+#include <libkern/OSAtomic.h>
+#include <stdlib.h>
+OSQueueHead free_records = OS_ATOMIC_QUEUE_INIT;
+
+static mach_port_t
+find_receive_port(struct thread * thread)
+{
+        mach_port_t ret;
+        struct exception_port_record * curr, * to_free = NULL;
+        while (1) {
+                curr = OSAtomicDequeue(&free_records, offsetof(struct exception_port_record, next));
+                if (curr == NULL)
+                        curr = calloc(sizeof(struct exception_port_record), 1);
+#ifdef LISP_FEATURE_X86_64
+                if ((mach_port_t)curr != (unsigned long)curr)
+                  goto skip;
+#endif
+                if (mach_port_allocate_name(current_mach_task,
+                                            MACH_PORT_RIGHT_RECEIVE,
+                                            (mach_port_t)curr))
+                        goto skip;
+                curr->thread = thread;
+                ret = (mach_port_t)curr;
+                break;
+        skip:
+                curr->next = to_free;
+                to_free = curr;
+        }
+        while (to_free != NULL) {
+                struct exception_port_record * current = to_free;
+                to_free = to_free->next;
+                free(current);
+        }
+
+        FSHOW((stderr, "Allocated exception port %x for thread %p\n", ret, thread));
+
+        return ret;
+}
+
 /* tell the kernel that we want EXC_BAD_ACCESS exceptions sent to the
    exception port (which is being listened to do by the mach
    exception handling thread). */
 kern_return_t
-mach_thread_init(mach_port_t *thread_exception_port)
+mach_thread_init(mach_port_t *thread_exception_port, struct thread * thread)
 {
     kern_return_t ret;
     mach_port_t current_mach_thread;
 
     /* allocate a named port for the thread */
-    FSHOW((stderr, "Allocating mach port %x\n", thread_exception_port));
-    ret = mach_port_allocate(current_mach_task,
-                             MACH_PORT_RIGHT_RECEIVE,
-                             thread_exception_port);
-    if (ret) {
-        lose("mach_port_allocate_name failed with return_code %d\n", ret);
-    }
+    *thread_exception_port = find_receive_port(thread);
 
     /* establish the right for the thread_exception_port to send messages */
     ret = mach_port_insert_right(current_mach_task,
@@ -153,7 +192,7 @@ mach_lisp_thread_init(struct thread *thread) {
     /* FIXME! */
     mach_port_t port;
     kern_return_t ret;
-    ret = mach_thread_init(&port);
+    ret = mach_thread_init(&port, thread);
 
     thread->mach_port_name = port;
 
@@ -162,13 +201,17 @@ mach_lisp_thread_init(struct thread *thread) {
 
 kern_return_t
 mach_lisp_thread_destroy(struct thread *thread) {
+    kern_return_t ret;
     mach_port_t port = thread->mach_port_name;
-
     FSHOW((stderr, "Deallocating mach port %x\n", port));
     mach_port_move_member(current_mach_task, port, MACH_PORT_NULL);
     mach_port_deallocate(current_mach_task, port);
 
-    return mach_port_destroy(current_mach_task, port);
+    ret = mach_port_destroy(current_mach_task, port);
+    ((struct exception_port_record*)port)->thread = NULL;
+    OSAtomicEnqueue(&free_records, (void*)port, offsetof(struct exception_port_record, next));
+
+    return ret;
 }
 
 void
@@ -177,7 +220,7 @@ setup_mach_exceptions() {
     mach_port_t port;
 
     setup_mach_exception_handling_thread();
-    mach_thread_init(&port);
+    mach_thread_init(&port, all_threads);
 
     all_threads->mach_port_name = port;
 }

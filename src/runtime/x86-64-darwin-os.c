@@ -325,20 +325,10 @@ catch_exception_raise(mach_port_t exception_port,
 
     os_vm_address_t addr;
 
-    struct thread *p, *th = NULL;
+    struct thread *th;
 
     FSHOW((stderr,"/entering catch_exception_raise with exception: %d\n", exception));
-
-    for(p=all_threads; p; p=p->next) {
-      if (exception_port == p->mach_port_name) {
-        th = p;
-        break;
-      }
-    }
-
-    if (!th)
-      lose("catch_exception_raise failed to find lisp thread for excecption_port",
-           exception_port);
+    th = *(struct thread**)exception_port;
 
     switch (exception) {
 
@@ -357,8 +347,6 @@ catch_exception_raise(mach_port_t exception_port,
                                (thread_state_t)&exception_state,
                                &exception_state_count);
         addr = (void*)exception_state.faultvaddr;
-
-
         /* note the os_context hackery here.  When the signal handler returns,
          * it won't go back to what it was doing ... */
         if(addr >= CONTROL_STACK_GUARD_PAGE(th) &&
